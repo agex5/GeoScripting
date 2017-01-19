@@ -2,9 +2,9 @@
 ## 18 Jan 2017
 
 
-
 #import libraries
 library(raster)
+library(hydroGOF)
 
 # load data
 load("data/GewataB1.rda")
@@ -22,16 +22,13 @@ vcfGewata[vcfGewata > 100] <- NA
 #build a brick of the data and assign names to the layers
 allbands <- brick(GewataB1, GewataB2, GewataB3, 
                  GewataB4, GewataB5, GewataB7 )
-
 names(allbands) <- c("band1", "band2", "band3", "band4", "band5", "band7")
-
 
 #Add VCF layer to the dataset and give name
 allbands_vcf <- addLayer(allbands, vcfGewata)
-
 names(allbands_vcf) <- c("band1", "band2", "band3", "band4", "band5", "band7", "VCF")
 
-#Transform raster multilayer into DataFrame
+#Transform multilayer raster into DataFrame
 bandvcf_df <- as.data.frame(getValues(allbands_vcf))
 
 #scatterplot
@@ -57,10 +54,10 @@ title(main = " VCF Tree Cover")
 plot(vcfpredic, legend=TRUE)
 title(main = "Predicted Tree Cover" )
 
-#calculation of RMSE
+#calculation of RMSE for Tree Cover
 vcfpredic_df <- as.data.frame(vcfpredic)
 vcfGewata_df <- as.data.frame(vcfGewata)
-rmse <- rmse(vcfpredic_df, vcfGewata_df, na.rm = TRUE)
+TreeCover_rmse <- rmse(vcfpredic_df, vcfGewata_df, na.rm = TRUE)
 
 
 #rasterize polygons
@@ -68,29 +65,17 @@ trainingPoly@data$Code <- as.numeric(trainingPoly@data$Class)
 classes <- rasterize(trainingPoly,allbands, field='Code')
 
 TCbrick <- brick(vcfpredic, vcfGewata)
-class_matrix <-zonal(TCbrick, classes, fun = 'mean', na.rm = TRUE )
+class_matrix <-zonal(TCbrick, classes, fun = 'mean')
 
-#rename the col and row on the matrix
-rownames(class_matrix) <-c("cropland", "forest", "wetland")
-colnames(class_matrix) <- c("zone","lr_predic", "VCF")
-
-#calculate the RMSE of the classes
-rmse_crop_predic <- rmse(vcfpredic_df, class_matrix[1,2], na.rm = TRUE)
-rmse_crop_VCF <- rmse(vcfGewata_df, class_matrix[1,3], na.rm = TRUE)
-
-rmse_forest_predic <- rmse(vcfpredic_df, class_matrix[2,2], na.rm = TRUE)
-rmse_forest_VCF <- rmse(vcfGewata_df, class_matrix[2,3], na.rm = TRUE)
-
-rmse_wetland_predic <- rmse(vcfpredic_df, class_matrix[3,2], na.rm = TRUE)
-rmse_wetland_VCF <- rmse(vcfGewata_df, class_matrix[3,3], na.rm = TRUE)
+class_df <- as.data.frame(class_matrix)
+classes_rsme <- sqrt((class_df$layer-class_df$vcf2000Gewata)^2)
 
 
-#matrix
+#Transform Rmse output into matrix
 rmseClasses <- matrix(
-  c(rmse_crop_predic, rmse_forest_predic, rmse_wetland_predic,
-    rmse_crop_VCF, rmse_forest_VCF, rmse_wetland_VCF ),
+  c(classes_rsme),
   nrow = 3,
-  ncol= 2)
-
+  ncol= 1)
 rownames(rmseClasses) <-c("cropland", "forest", "wetland")
-colnames(rmseClasses) <- c("lr_predic", "VCF")
+colnames(rmseClasses) <- c("RMSE")
+print(rmseClasses)
